@@ -1,0 +1,826 @@
+---
+output:
+  html_document: default
+---
+
+# Summary: NOB1-FCP1-ARG8 - RT-qPCR experiment v1.0.
+
+## Setup knitr options and load packages
+
+```{r setup,warning=FALSE,message=FALSE}
+
+# knitr options for report generation
+knitr::opts_chunk$set(
+  warning = FALSE, message = FALSE, echo = TRUE, cache = FALSE,
+  results = "show")
+
+# Load packages
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyqpcr)
+library(stringr)
+
+# set default theme for graphics
+theme_set(theme_bw(base_size = 11) %+replace%
+  theme(
+    strip.background = element_blank(),
+    panel.grid = element_blank()
+  ))
+```
+
+## Organize sample and target data on the plates
+
+```{r set_platedata_NOB1,dependson="label_plates"}
+# NOB1_plate
+# set unexclude wells for NOB1
+letters_series <- rep(LETTERS[5:16], each = 24)
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_NOB1 <- read_lightcycler_1colour_cq("WD_20230710_NOB1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_NOB1_2nd_derivative <- read_lightcycler_1colour_cq("WD_20230710_NOB1_ct_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_NOB1
+plate_cq_extdata_NOB1_2nd_derivative
+
+# set plate distribution
+plate_cq_data_NOB1 <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_NOB1, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_NOB1_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_NOB1_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("NOB1","PGK1","RPS3","RPS13")
+rowkey4 <- tibble(
+  well_row = LETTERS[1:4],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "NOB1_3'utr_swap_A_rep1", "NOB1_3'utr_swap_A_rep2", "NOB1_3'utr_swap_B_rep1", "NOB1_3'utr_swap_B_rep2")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_NOB1 <- label_plate_rowcol(
+  plate = plate_cq_data_NOB1,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_NOB1_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_NOB1_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_NOB1
+plate_cq_data_NOB1_2nd_derivative
+
+```
+
+```{r set_platedata_AGR8,dependson="label_plates"}
+# ARG8_plate
+# set unexclude wells for ARG8
+letters_series <- rep(LETTERS[5:16], each = 24)
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_ARG8 <- read_lightcycler_1colour_cq("WD_20230718_ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_ARG8_2nd_derivative <- read_lightcycler_1colour_cq("WD_20230718_ARG8+FCP1_ct_2nd-derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_ARG8
+plate_cq_extdata_ARG8_2nd_derivative
+
+# set plate distribution
+plate_cq_data_ARG8 <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_ARG8, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_ARG8_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_ARG8_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("ARG8","PGK1","RPS3","RPS13")
+rowkey4 <- tibble(
+  well_row = LETTERS[1:4],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "ARG8_3'utr_swap_A_rep1", "ARG8_3'utr_swap_A_rep2", "ARG8_3'utr_swap_B_rep1", "ARG8_3'utr_swap_B_rep2")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_ARG8 <- label_plate_rowcol(
+  plate = plate_cq_data_ARG8,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_ARG8_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_ARG8_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_ARG8
+plate_cq_data_ARG8_2nd_derivative
+
+```
+
+```{r set_platedata_FCP1,dependson="label_plates"}
+# FCP1_plate
+# set unexclude wells for FCP1
+letters_series <- c(rep(LETTERS[1:4], each = 24), rep(LETTERS[9:16], each = 24))
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_FCP1 <- read_lightcycler_1colour_cq("WD_20230718_ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_FCP1_2nd_derivative <- read_lightcycler_1colour_cq("WD_20230718_ARG8+FCP1_ct_2nd-derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_FCP1
+plate_cq_extdata_FCP1_2nd_derivative
+
+# set plate distribution
+plate_cq_data_FCP1 <- 
+  create_blank_plate(well_row = LETTERS[5:8], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_FCP1_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[5:8], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("FCP1","PGK1","RPS3","RPS13")
+rowkey4 <- tibble(
+  well_row = LETTERS[5:8],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "FCP1_3'utr_swap_A_rep1", "FCP1_3'utr_swap_A_rep2", "FCP1_3'utr_swap_B_rep1", "no_sample")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_FCP1 <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1
+plate_cq_data_FCP1_2nd_derivative
+
+```
+
+## Plot unnormalized Cq data
+
+```{r plot_unnormalized_NOB1,dependson="load_plates",fig.height=6,fig.width=8}
+# fit point approach
+ggplot(data = plate_cq_data_NOB1) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_NOB1_fit_point_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# 2nd derivative approach
+ggplot(data = plate_cq_data_NOB1_2nd_derivative) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_NOB1_2nd_derivative_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+```{r plot_unnormalized_ARG8,dependson="load_plates",fig.height=6,fig.width=8}
+# fit point approach
+ggplot(data = plate_cq_data_ARG8) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_ARG8_fit_point_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# 2nd derivative approach
+ggplot(data = plate_cq_data_ARG8_2nd_derivative) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_ARG8_2nd_derivative_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+```{r plot_unnormalized_FCP1,dependson="load_plates",fig.height=6,fig.width=8}
+# fit point approach
+ggplot(data = plate_cq_data_FCP1) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_FCP1_fit_point_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# 2nd derivative approach
+ggplot(data = plate_cq_data_FCP1_2nd_derivative) +
+  geom_point(aes(x = target_id, y = cq, shape = sample_id, colour = sample_id),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_FCP1_2nd_derivative_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+
+# Normalized data: delta Cq
+
+## Normalize Cq to PGK1, RPS3 and RPS13, within Sample only 
+
+```{r normalize_counts_NOB1,dependson="load_plates"}
+# normalized Cq for NOB1 fit point
+plate_cq_data_NOB1 <- plate_cq_data_NOB1 %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_NOB1 <- plate_cq_data_NOB1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_NOB1 <- plate_cq_data_NOB1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_NOB1 <- plate_cq_data_NOB1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_NOB1 <- plate_cq_data_NOB1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+
+# normalized Cq for NOB1 2nd deriviation
+plate_cq_data_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+
+```
+
+```{r normalize_counts_ARG8,dependson="load_plates"}
+# normalized Cq for ARG8 fit point
+plate_cq_data_ARG8 <- plate_cq_data_ARG8 %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_ARG8 <- plate_cq_data_ARG8 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_ARG8 <- plate_cq_data_ARG8 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_ARG8 <- plate_cq_data_ARG8 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_ARG8 <- plate_cq_data_ARG8 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+
+# normalized Cq for ARG8 2nd deriviation
+plate_cq_data_ARG8_2nd_derivative <- plate_cq_data_ARG8_2nd_derivative %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_ARG8_2nd_derivative <- plate_cq_data_ARG8_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_ARG8_2nd_derivative <- plate_cq_data_ARG8_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_ARG8_2nd_derivative <- plate_cq_data_ARG8_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_ARG8_2nd_derivative <- plate_cq_data_ARG8_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+
+```
+
+```{r normalize_counts_FCP1,dependson="load_plates"}
+# normalized Cq for FCP1 fit point
+plate_cq_data_FCP1 <- plate_cq_data_FCP1 %>%
+  filter(!prep_type == "-RT")
+plate_cq_data_FCP1 <- plate_cq_data_FCP1 %>%
+  filter(!sample_id == "no_sample")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_FCP1 <- plate_cq_data_FCP1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_FCP1 <- plate_cq_data_FCP1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_FCP1 <- plate_cq_data_FCP1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_FCP1 <- plate_cq_data_FCP1 %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+
+# normalized Cq for FCP1 2nd deriviation
+plate_cq_data_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  filter(!prep_type == "-RT")
+plate_cq_data_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  filter(!sample_id == "no_sample")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_total_FCP1_2nd_derivative <- plate_cq_data_FCP1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+```
+
+## Plot normalized data, all reps(except -rt+no sample)
+
+```{r combined_three_datafrome,dependson="bind_plates"}
+plate_norm_PGK1_all <- rbind(plate_norm_PGK1_NOB1, plate_norm_PGK1_FCP1, plate_norm_PGK1_ARG8)
+plate_norm_PGK1_all_2nd_derivative <- rbind(plate_norm_PGK1_NOB1_2nd_derivative, plate_norm_PGK1_FCP1_2nd_derivative, plate_norm_PGK1_ARG8_2nd_derivative)
+plate_norm_PGK1_all <- plate_norm_PGK1_all %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+plate_norm_PGK1_all_2nd_derivative <- plate_norm_PGK1_all_2nd_derivative %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_RPS3_all <- rbind(plate_norm_RPS3_NOB1, plate_norm_RPS3_FCP1, plate_norm_RPS3_ARG8)
+plate_norm_RPS3_all_2nd_derivative <- rbind(plate_norm_RPS3_NOB1_2nd_derivative, plate_norm_RPS3_FCP1_2nd_derivative, plate_norm_RPS3_ARG8_2nd_derivative)
+plate_norm_RPS3_all <- plate_norm_RPS3_all %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+plate_norm_RPS3_all_2nd_derivative <- plate_norm_RPS3_all_2nd_derivative %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_RPS13_all <- rbind(plate_norm_RPS13_NOB1, plate_norm_RPS13_FCP1, plate_norm_RPS13_ARG8)
+plate_norm_RPS13_all_2nd_derivative <- rbind(plate_norm_RPS13_NOB1_2nd_derivative, plate_norm_RPS13_FCP1_2nd_derivative, plate_norm_RPS13_ARG8_2nd_derivative)
+plate_norm_RPS13_all <- plate_norm_RPS13_all %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+plate_norm_RPS13_all_2nd_derivative <- plate_norm_RPS13_all_2nd_derivative %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_total_all <- rbind(plate_norm_total_NOB1, plate_norm_total_FCP1, plate_norm_total_ARG8)
+plate_norm_total_all_2nd_derivative <- rbind(plate_norm_total_NOB1_2nd_derivative, plate_norm_total_FCP1_2nd_derivative, plate_norm_total_ARG8_2nd_derivative)
+plate_norm_total_all <- plate_norm_total_all %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+plate_norm_total_all_2nd_derivative <- plate_norm_total_all_2nd_derivative %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+```
+
+```{r plot_normalized,dependson="median_counts",fig.height=6,fig.width=8}
+# PGK1 as reference gene
+# fit point approach
+ggplot(data = plate_norm_PGK1_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_PGK1") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+# 2nd deriviation approach
+ggplot(data = plate_norm_PGK1_all_2nd_derivative) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_PGK1") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# RPS3 as reference gene
+# fit point approach
+ggplot(data = plate_norm_RPS3_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_RPS3") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+# 2nd deriviation approach
+ggplot(data = plate_norm_RPS3_all_2nd_derivative) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_RPS3") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# RPS13 as reference gene
+# fit point approach
+ggplot(data = plate_norm_RPS13_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_RPS13") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+# 2nd deriviation approach
+ggplot(data = plate_norm_RPS13_all_2nd_derivative) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_RPS13") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# total reference gene mean value
+# fit point approach
+ggplot(data = plate_norm_total_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_total") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+# 2nd deriviation approach
+ggplot(data = plate_norm_total_all_2nd_derivative) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "delta Cq",
+    title = "Normalized_delta_cq_total") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+
+
+## Calculate a summary value for each sample-target combination
+
+Having made normalized values, we use `group_by` and `summarize` from the `dplyr` package to calculate the median values of `delta_cq` and `rel_abund` for each sample. This makes a smaller table by collapsing 3 technical replicates into a single summary value for each `sample_id`-`target_id` combination.
+
+```{r median_counts,dependson="load_plates"}
+# this also can choose median and mean
+# PGK1
+# fit point
+plate_med_PGK1 <- plate_norm_PGK1_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_PGK1 <- plate_med_PGK1 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+# 2nd deriviation
+plate_med_PGK1_2nd_derivative <- plate_norm_PGK1_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_PGK1_2nd_derivative <- plate_med_PGK1_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+# RPS3
+# fit point
+plate_med_RPS3 <- plate_norm_RPS3_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_RPS3 <- plate_med_RPS3 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+# 2nd deriviation
+plate_med_RPS3_2nd_derivative <- plate_norm_RPS3_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_RPS3_2nd_derivative <- plate_med_RPS3_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+# RPS13
+# fit point
+plate_med_RPS13 <- plate_norm_RPS13_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_RPS13 <- plate_med_RPS13 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+# 2nd deriviation
+plate_med_RPS13_2nd_derivative <- plate_norm_RPS13_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_RPS13_2nd_derivative <- plate_med_RPS13_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+# total
+# fit point
+plate_med_total <- plate_norm_total_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_total <- plate_med_total %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+# 2nd deriviation
+plate_med_total_2nd_derivative <- plate_norm_total_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_total_2nd_derivative <- plate_med_total_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+```
+
+## Plot delta Cq
+
+```{r plot_deltacq_vs_gene_PGK1,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_med_PGK1 ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_PGK1") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+ggplot(data = plate_med_PGK1_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_PGK1_2nd_derivative") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+```
+
+```{r plot_deltacq_vs_gene_RPS3,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_med_RPS3 ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_RPS3") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+ggplot(data = plate_med_RPS3_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_RPS3_2nd_derivative") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+```
+
+```{r plot_deltacq_vs_gene_RPS13,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_med_RPS13 ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_RPS13") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_med_RPS13_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_RPS13_2nd_derivative") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+```
+
+```{r plot_deltacq_vs_gene_total,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_med_total ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_total") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_med_total_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(
+    y = "delta Cq"
+, title = "Delta_cq_total_2nd_derivative") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+```
+
+## Calculate deltadelta Cq
+
+```{r calculate_deltadeltacq,dependson="normalize_counts"}
+# also can choose median or mean, here is median
+plate_deltanorm_PGK1 <- plate_norm_PGK1_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_PGK1 <- plate_deltanorm_PGK1 %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_PGK1 <- plate_deltanorm_med_PGK1 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_PGK1_2nd_derivative <- plate_norm_PGK1_all_2nd_derivative %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_PGK1_2nd_derivative <- plate_deltanorm_PGK1_2nd_derivative %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_PGK1_2nd_derivative <- plate_deltanorm_med_PGK1_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_RPS3 <- plate_norm_RPS3_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_RPS3 <- plate_deltanorm_RPS3 %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_RPS3 <- plate_deltanorm_med_RPS3 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_RPS3_2nd_derivative <- plate_norm_RPS3_all_2nd_derivative %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_RPS3_2nd_derivative <- plate_deltanorm_RPS3_2nd_derivative %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_RPS3_2nd_derivative <- plate_deltanorm_med_RPS3_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_RPS13 <- plate_norm_RPS13_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_RPS13 <- plate_deltanorm_RPS13 %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_RPS13 <- plate_deltanorm_med_RPS13 %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_RPS13_2nd_derivative <- plate_norm_RPS13_all_2nd_derivative %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_RPS13_2nd_derivative <- plate_deltanorm_RPS13_2nd_derivative %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_RPS13_2nd_derivative <- plate_deltanorm_med_RPS13_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_total <- plate_norm_total_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_total <- plate_deltanorm_total %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_total <- plate_deltanorm_med_total %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_deltanorm_total_2nd_derivative <- plate_norm_total_all_2nd_derivative %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2"))
+plate_deltanorm_med_total_2nd_derivative <- plate_deltanorm_total_2nd_derivative %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_deltanorm_med_total_2nd_derivative <- plate_deltanorm_med_total_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+```
+
+## Plot deltadelta Cq
+
+```{r plot_deltadeltacq_bytarget_PGK1,dependson="calculate_deltadeltacq",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_deltanorm_med_PGK1 ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_PGK1"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_deltanorm_med_PGK1_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_PGK1_2nd_derivative"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+
+```{r plot_deltadeltacq_bytarget_RPS3,dependson="calculate_deltadeltacq",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_deltanorm_med_RPS3 ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_RPS3"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_deltanorm_med_RPS3_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_RPS3_2nd_derivative"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+
+```{r plot_deltadeltacq_bytarget_RPS13,dependson="calculate_deltadeltacq",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_deltanorm_med_RPS13 ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_RPS13"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_deltanorm_med_RPS13_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_RPS13_2nd_derivative"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+```{r plot_deltadeltacq_bytarget_total,dependson="calculate_deltadeltacq",fig.height=6,fig.width=8}
+strain_colors <- c("blue","skyblue", "red","pink", "green4","palegreen","black")
+ggplot(data = plate_deltanorm_med_total ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_total"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_deltanorm_med_total_2nd_derivative ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain)) + 
+  labs(
+    y = "delta delta Cq (log2 fold change)\n relative to WT", title = "Deltadelta_cq_total_2nd_derivative"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```

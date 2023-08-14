@@ -1,0 +1,415 @@
+---
+output:
+  html_document: default
+---
+
+# Summary: NOB1-heat-shock- RT-qPCR experiment_draft.
+
+## Setup knitr options and load packages
+
+```{r setup,warning=FALSE,message=FALSE}
+
+# knitr options for report generation
+knitr::opts_chunk$set(
+  warning = FALSE, message = FALSE, echo = TRUE, cache = FALSE,
+  results = "show")
+
+# Load packages
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyqpcr)
+library(stringr)
+
+# set default theme for graphics
+theme_set(theme_bw(base_size = 11) %+replace%
+  theme(
+    strip.background = element_blank(),
+    panel.grid = element_blank()
+  ))
+```
+
+## Organize sample and target data on the plates
+
+```{r set_platedata_NOB1_1,dependson="label_plates"}
+# plate_1
+# set unexclude wells for NOB1
+letters_series <- rep(LETTERS[5:16], each = 24)
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_1_2nd_derivative <- read_lightcycler_1colour_cq("WD_250723_NOB1_HS_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+# set plate distribution
+
+plate_cq_data_1_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_1_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("NOB1","PGK1","RPS3","RPS13")
+rowkey4 <- tibble(
+  well_row = LETTERS[1:4],
+  target_id = target_id_levels)
+sample_id_levels <- c("NOB1swap_nonHS_rep1", "WT_nonHS_rep2", "NOB1swap_nonHS_rep2", "WT_nonHS_rep1", "NOB1swap_shortHS_rep1", "NOB1swap_shortHS_rep2")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_1_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_1_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+# plate_2
+# set unexclude wells for ARG8
+letters_series <- c(rep(LETTERS[1:4], each = 24), rep(LETTERS[9:16], each = 24))
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_2_2nd_derivative <- read_lightcycler_1colour_cq("WD_250723_NOB1_HS_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+# set plate distribution
+
+plate_cq_data_2_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[5:8], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_2_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("NOB1","PGK1","RPS3","RPS13")
+rowkey4 <- tibble(
+  well_row = LETTERS[5:8],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_shortHS_rep1", "WT_shortHS_rep2", "NOB1swap_mediumHS_rep1", "NOB1swap_mediumHS_rep2", "WT_mediumHS_rep1", "WT_mediumHS_rep2")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_2_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_2_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_NOB1_2nd_derivative = rbind(plate_cq_data_1_2nd_derivative, plate_cq_data_2_2nd_derivative)
+plate_cq_data_NOB1_2nd_derivative
+
+```
+
+
+## Plot unnormalized Cq data
+
+```{r plot_unnormalized_NOB1,dependson="load_plates",fig.height=6,fig.width=8}
+unnormalized_plot_data <-  plate_cq_data_NOB1_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+unnormalized_plot_data
+
+# 2nd derivative approach
+strain_colors <- c("#330099","#3366FF","#66CCFF","#FF0000","#FF3399","#FF99CC")
+ggplot(data = unnormalized_plot_data) +
+  geom_point(aes(x = target_id, y = cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_NOB1_2nd_derivative_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+
+
+# Normalized data: delta Cq
+
+## Normalize Cq to PGK1, RPS3 and RPS13, within Sample only 
+
+```{r normalize_counts_NOB1,dependson="load_plates"}
+
+# normalized Cq for NOB1 2nd deriviation
+plate_cq_data_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_mean_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+plate_norm_median_NOB1_2nd_derivative <- plate_cq_data_NOB1_2nd_derivative %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"))
+
+```
+
+
+## Plot normalized data, all reps(except -rt+no sample)
+
+```{r combined_three_datafrome,dependson="bind_plates"}
+plate_norm_PGK1_all_2nd_derivative <- plate_norm_PGK1_NOB1_2nd_derivative %>%
+  filter(target_id == "NOB1") %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+plate_norm_RPS3_all_2nd_derivative <- plate_norm_RPS3_NOB1_2nd_derivative %>%
+  filter(target_id == "NOB1") %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+plate_norm_RPS13_all_2nd_derivative <- plate_norm_RPS13_NOB1_2nd_derivative %>%
+  filter(target_id == "NOB1") %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+plate_norm_mean_all_2nd_derivative <- plate_norm_mean_NOB1_2nd_derivative %>%
+  filter(target_id == "NOB1") %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+plate_norm_median_all_2nd_derivative <- plate_norm_median_NOB1_2nd_derivative %>%
+  filter(target_id == "NOB1") %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+```
+
+```{r plot_normalized,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("#330099","#3366FF","#66CCFF","#FF0000","#FF3399","#FF99CC")
+# PGK1 as reference gene
+
+# 2nd deriviation approach
+ggplot(data = plate_norm_PGK1_all_2nd_derivative) +
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "ΔCq, (log2 relative abundance change)\n relative to PGK1",
+    title = "Normalized_Δ_cq_PGK1_2nd_derivative") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# RPS3 as reference gene
+# 2nd deriviation approach
+ggplot(data = plate_norm_RPS3_all_2nd_derivative) +
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "ΔCq (log2 relative abundance change)\n relative to RPS3",
+    title = "Normalized_ΔCq_RPS3_2nd_derivative") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# RPS13 as reference gene
+# 2nd deriviation approach
+ggplot(data = plate_norm_RPS13_all_2nd_derivative) +
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "ΔCq (log2 relative abundance change)\n relative to RPS13",
+    title = "Normalized_ΔCq_RPS13_2nd_derivative") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# mean of reference gene mean value
+# 2nd deriviation approach
+ggplot(data = plate_norm_mean_all_2nd_derivative) +
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "ΔCq (log2 relative abundance change)\n relative to reference gene",
+    title = "Normalized_ΔCq_mean") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# median of reference gene mean value
+# 2nd deriviation approach
+ggplot(data = plate_norm_median_all_2nd_derivative) +
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(y = "ΔCq (log2 relative abundance change)\n relative to reference gene",
+    title = "Normalized_ΔCq_median") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+
+
+## Calculate a summary value for each sample-target combination
+
+Having made normalized values, we use `group_by` and `summarize` from the `dplyr` package to calculate the median values of `delta_cq` and `rel_abund` for each sample. This makes a smaller table by collapsing 3 technical replicates into a single summary value for each `sample_id`-`target_id` combination.
+
+```{r median_counts,dependson="load_plates", cache=TRUE}
+
+# median_delta_cq+mean_normalised
+plate_med_mean_2nd_derivative <- plate_norm_mean_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_mean_2nd_derivative <- plate_med_mean_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+# median_delta_cq+median_normalised
+# 2nd derivation
+plate_med_median_2nd_derivative <- plate_norm_median_all_2nd_derivative %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_median_2nd_derivative <- plate_med_median_2nd_derivative %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+
+```
+
+## Plot delta Cq
+
+```{r plot_deltacq_vs_gene_total,dependson="median_counts",fig.height=4,fig.width=6}
+
+strain_colors <- c("#330099","#3366FF","#66CCFF","#FF0000","#FF3399","#FF99CC")
+ggplot(data = plate_med_mean_2nd_derivative ) + 
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone) ) + 
+  labs(
+    y = "ΔCq (log2 relative abundance change)\n relative to MEAN of reference gene"
+, title = "ΔCq_mean") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  facet_wrap(~condition,ncol=3)+
+  scale_color_manual(values = strain_colors)
+
+
+ggplot(data = plate_med_median_2nd_derivative ) + 
+  geom_point(aes(x = strain, y = delta_cq, shape = rep_number, colour = clone) ) + 
+  labs(
+    y = "ΔCq (log2 relative abundance change)\n relative to MEDIAN of reference gene"
+, title = "ΔCq_median") +
+  facet_wrap(~condition,ncol=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+```
+## generate deltadelta Cq
+```{r generate_deltadeltacq_vs_gene_total,dependson="median_counts",fig.height=6,fig.width=8}
+# mean
+nonHS <-  plate_norm_mean_all_2nd_derivative %>%
+  filter(condition == "nonHS")
+nonHS_deltadeltaCq <- nonHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_nonHS_rep1","WT_nonHS_rep2"))
+
+shortHS <- plate_norm_mean_all_2nd_derivative %>%
+  filter(condition == "shortHS")
+shortHS_deltadeltaCq <- shortHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_shortHS_rep1","WT_shortHS_rep2"))
+
+mediumHS <- plate_norm_mean_all_2nd_derivative %>%
+  filter(condition == "mediumHS")
+mediumHS_deltadeltaCq <- mediumHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_mediumHS_rep1","WT_mediumHS_rep2"))
+
+deltadelta_Cq_HS_mean <- rbind(nonHS_deltadeltaCq, shortHS_deltadeltaCq, mediumHS_deltadeltaCq)
+deltadelta_Cq_HS_mean <- deltadelta_Cq_HS_mean %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+
+deltadelta_Cq_HS_mean <- deltadelta_Cq_HS_mean %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+deltadelta_Cq_HS_mean
+
+# median
+nonHS <-  plate_norm_median_all_2nd_derivative %>%
+  filter(condition == "nonHS")
+nonHS_deltadeltaCq <- nonHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_nonHS_rep1","WT_nonHS_rep2"))
+
+shortHS <- plate_norm_median_all_2nd_derivative %>%
+  filter(condition == "shortHS")
+shortHS_deltadeltaCq <- shortHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_shortHS_rep1","WT_shortHS_rep2"))
+
+mediumHS <- plate_norm_median_all_2nd_derivative %>%
+  filter(condition == "mediumHS")
+mediumHS_deltadeltaCq <- mediumHS %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_mediumHS_rep1","WT_mediumHS_rep2"))
+
+deltadelta_Cq_HS_median <- rbind(nonHS_deltadeltaCq, shortHS_deltadeltaCq, mediumHS_deltadeltaCq)
+deltadelta_Cq_HS_median <- deltadelta_Cq_HS_median %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+
+deltadelta_Cq_HS_median <- deltadelta_Cq_HS_median %>%
+  mutate(strain = str_replace(sample_id, "_.*$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"),
+         condition = str_extract(sample_id, "(?<=_)[^_]+(?=_rep\\d)"),
+         clone = str_extract(sample_id, ".*(?=_rep\\d$)"))
+deltadelta_Cq_HS_median
+
+```
+
+## plot deltadeltaCq
+```{r plot_deltadeltacq_vs_gene_total,dependson="median_counts",fig.height=4,fig.width=6}
+
+strain_colors <- c("#330099","#3366FF","#66CCFF","#FF0000","#FF3399","#FF99CC")
+ggplot(data = deltadelta_Cq_HS_mean ) + 
+  geom_point(aes(x = strain, y = deltadelta_cq, shape = rep_number, colour = clone) ) + 
+  labs(
+    y = "ΔΔCq (log2 fold change)\n relative to WT"
+, title = "ΔΔCq_mean_2nd_derivative_condition") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  facet_wrap(~condition,ncol=3)+
+  scale_color_manual(values = strain_colors)
+
+
+ggplot(data = deltadelta_Cq_HS_median ) + 
+  geom_point(aes(x = strain, y = deltadelta_cq, shape = rep_number, colour = clone) ) + 
+  labs(
+    y = "ΔΔCq (log2 fold change)\n relative to WT"
+, title = "ΔΔCq_median_2nd_derivative_condition") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  facet_wrap(~condition,ncol=3)+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = deltadelta_Cq_HS_median ) + 
+  geom_point(aes(x = condition, y = deltadelta_cq, shape = rep_number, colour = clone) ) + 
+  labs(
+    y = "ΔΔCq (log2 fold change)\n relative to WT"
+, title = "ΔΔCq_median_2nd_derivative_strain") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  facet_wrap(~strain,ncol=2)+
+  scale_color_manual(values = strain_colors)
+
+```

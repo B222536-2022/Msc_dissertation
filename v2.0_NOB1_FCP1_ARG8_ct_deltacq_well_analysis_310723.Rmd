@@ -1,0 +1,515 @@
+---
+output:
+  html_document: default
+---
+
+# Summary: NOB1-FCP1-ARG8 - RT-qPCR experiment v2.0_draft.
+
+## Setup knitr options and load packages
+
+```{r setup,warning=FALSE,message=FALSE}
+
+# knitr options for report generation
+knitr::opts_chunk$set(
+  warning = FALSE, message = FALSE, echo = TRUE, cache = FALSE,
+  results = "show")
+
+# Load packages
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyqpcr)
+library(stringr)
+
+# set default theme for graphics
+theme_set(theme_bw(base_size = 11) %+replace%
+  theme(
+    strip.background = element_blank(),
+    panel.grid = element_blank()
+  ))
+```
+
+## Organize sample and target data on the plates
+
+```{r set_platedata_NOB1,dependson="label_plates"}
+# NOB1_plate
+# set unexclude wells for NOB1
+letters_series <- rep(LETTERS[5:16], each = 24)
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_NOB1 <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_NOB1_2nd_derivative <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_NOB1
+plate_cq_extdata_NOB1_2nd_derivative
+
+# set plate distribution
+plate_cq_data_NOB1 <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_NOB1, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_NOB1_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[1:4], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_NOB1_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("NOB1","PGK1","RPS13","RPS3")
+rowkey4 <- tibble(
+  well_row = LETTERS[1:4],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "WT_rep3", "NOB1_3'utr_swap_rep1", "NOB1_3'utr_swap_rep2", "NOB1_3'utr_swap_rep3")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_NOB1 <- label_plate_rowcol(
+  plate = plate_cq_data_NOB1,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_NOB1_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_NOB1_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_NOB1
+plate_cq_data_NOB1_2nd_derivative
+
+```
+
+```{r set_platedata_AGR8,dependson="label_plates"}
+# ARG8_plate
+# set unexclude wells for ARG8
+letters_series <- c(rep(LETTERS[1:4], each = 24), rep(LETTERS[9:16], each = 24))
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_ARG8 <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_ARG8_2nd_derivative <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_ARG8
+plate_cq_extdata_ARG8_2nd_derivative
+
+# set plate distribution
+plate_cq_data_ARG8 <- 
+  create_blank_plate(well_row = LETTERS[5:8], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_ARG8, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_ARG8_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[5:8], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_ARG8_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("ARG8","PGK1","RPS13","RPS3")
+rowkey4 <- tibble(
+  well_row = LETTERS[5:8],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "WT_rep3", "ARG8_3'utr_swap_rep1", "ARG8_3'utr_swap_rep2", "ARG8_3'utr_swap_rep3")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_ARG8 <- label_plate_rowcol(
+  plate = plate_cq_data_ARG8,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_ARG8_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_ARG8_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_ARG8
+plate_cq_data_ARG8_2nd_derivative
+
+```
+
+```{r set_platedata_FCP1_1,dependson="label_plates"}
+# FCP1_plate_1
+# set unexclude wells for FCP1
+letters_series <- c(rep(LETTERS[1:8], each = 24), rep(LETTERS[13:16], each = 24))
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_FCP1 <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_FCP1_2nd_derivative <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_FCP1
+plate_cq_extdata_FCP1_2nd_derivative
+
+# set plate distribution
+plate_cq_data_FCP1 <- 
+  create_blank_plate(well_row = LETTERS[9:12], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_FCP1_2nd_derivative <- 
+  create_blank_plate(well_row = LETTERS[9:12], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1_2nd_derivative, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("FCP1","PGK1","RPS13","RPS3")
+rowkey4 <- tibble(
+  well_row = LETTERS[9:12],
+  target_id = target_id_levels)
+sample_id_levels <- c("WT_rep1", "WT_rep2", "WT_rep3", "FCP1_3'utr_swap_A_rep1", "FCP1_3'utr_swap_A_rep2", "FCP1_3'utr_swap_B_rep1")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_FCP1 <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1_2nd_derivative <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1_2nd_derivative,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1
+plate_cq_data_FCP1_2nd_derivative
+
+```
+
+```{r set_platedata_FCP1,dependson="label_plates"}
+# FCP1_plate_2
+# set unexclude wells for FCP1
+letters_series <- rep(LETTERS[1:12], each = 24)
+numbers_series <- rep(1:24, times = 3)
+wells_exclude <- paste0(letters_series, numbers_series)
+
+plate_cq_extdata_FCP1_plus <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+plate_cq_extdata_FCP1_2nd_derivative_plus <- read_lightcycler_1colour_cq("WD_24072023_NOB1+ARG8+FCP1_ct_2nd_derivative.txt") %>%
+  dplyr::filter(! well %in% wells_exclude ) %>% # exclude blank wells
+  dplyr::select(well, sample_info, cq) 
+
+# set plate distribution
+plate_cq_data_FCP1_plus <- 
+  create_blank_plate(well_row = LETTERS[13:16], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1_plus, by = "well") # %>% # join that info to loaded data
+
+plate_cq_data_FCP1_2nd_derivative_plus <- 
+  create_blank_plate(well_row = LETTERS[13:16], well_col = 1:24) %>% # row and column labels for each well
+  inner_join(plate_cq_extdata_FCP1_2nd_derivative_plus, by = "well") # %>% # join that info to loaded data
+
+target_id_levels <- c("FCP1","PGK1","RPS13","RPS3")
+rowkey4 <- tibble(
+  well_row = LETTERS[13:16],
+  target_id = target_id_levels)
+sample_id_levels <- c("FCP1_3'utr_swap_B_rep2", "no_sample", "no_sample", "no_sample", "no_sample","no_sample")
+prep_type_values <- c(rep("+RT", times = 18), rep("-RT", times = 6))
+colkey12 <- tibble(
+  well_col = 1:24,
+  sample_id = rep(sample_id_levels, times = 4),
+  prep_type = prep_type_values)
+
+plate_cq_data_FCP1_plus <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1_plus,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1_2nd_derivative_plus <- label_plate_rowcol(
+  plate = plate_cq_data_FCP1_2nd_derivative_plus,
+  rowkey = rowkey4,
+  colkey = colkey12)
+
+plate_cq_data_FCP1 <- rbind(plate_cq_data_FCP1, plate_cq_data_FCP1_plus)
+plate_cq_data_FCP1_2nd_derivative <- rbind(plate_cq_data_FCP1_2nd_derivative, plate_cq_data_FCP1_2nd_derivative_plus)
+
+plate_cq_data_FCP1
+plate_cq_data_FCP1_2nd_derivative
+```
+
+## Plot unnormalized Cq data
+
+```{r plot_unnormalized_NOB1,dependson="load_plates",fig.height=6,fig.width=8}
+
+plate_cq_data <- rbind(plate_cq_data_ARG8_2nd_derivative, plate_cq_data_FCP1_2nd_derivative, plate_cq_data_NOB1_2nd_derivative)
+
+plate_cq_data <- plate_cq_data %>%
+  filter(!sample_id == "no_sample") %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+# 2nd derivative approach
+strain_colors <- c("blue", "red","pink", "green4","black")
+ggplot(data = plate_cq_data) +
+  geom_point(aes(x = target_id, y = cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",
+    y = "Quantification cycle (Cq)",
+    title = "Unnormalized_NOB1_2nd_derivative_cq"
+  ) +
+  facet_wrap(~prep_type,ncol=5) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+
+```
+
+
+# Normalized data: delta Cq
+
+## Normalize Cq to PGK1, RPS3 and RPS13, within Sample only 
+
+```{r normalize_counts_NOB1,dependson="load_plates"}
+# normalized Cq
+plate_cq_data <- plate_cq_data %>%
+  filter(!prep_type == "-RT")
+# the normalisation can use mean or median(,norm_function = median/mean)
+plate_norm_PGK1 <- plate_cq_data %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "PGK1")
+plate_norm_RPS3 <- plate_cq_data %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS3")
+plate_norm_RPS13 <- plate_cq_data %>%
+  calculate_deltacq_bysampleid(ref_target_ids = "RPS13")
+plate_norm_mean <- plate_cq_data %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"), norm_function = mean)
+plate_norm_median <- plate_cq_data %>%
+  calculate_deltacq_bysampleid(ref_target_ids = c("PGK1", "RPS3", "RPS13"))
+```
+
+## Plot normalized data, all reps(except -rt+no sample)
+
+```{r combined_three_datafrome,dependson="bind_plates"}
+plate_norm_PGK1_all <- plate_norm_PGK1 %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_RPS3_all <- plate_norm_RPS3 %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_RPS13_all <- plate_norm_RPS13 %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_mean_all <- plate_norm_mean %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_norm_median_all <- plate_norm_median %>%
+  filter(target_id %in% c("NOB1", "ARG8", "FCP1")) %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+```
+
+```{r plot_normalized,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue", "red","pink", "green4","black")
+# PGK1 as reference gene
+ggplot(data = plate_norm_PGK1_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",y = "ΔCq (log2 relative abundance change)\n relative to PGK1",
+    title = "Normalized_ΔCq_PGK1") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# RPS3 as reference gene
+ggplot(data = plate_norm_RPS3_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",y = "ΔCq (log2 relative abundance change)\n relative to RPS3",
+    title = "Normalized_ΔCq_RPS3") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# RPS13 as reference gene
+# 2nd deriviation approach
+ggplot(data = plate_norm_RPS13_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",y = "ΔCq (log2 relative abundance change)\n relative to RPS13",
+    title = "Normalized_ΔCq_RPS13") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# mean reference gene mean value
+# 2nd deriviation approach
+ggplot(data = plate_norm_mean_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",y = "ΔCq, (log2 relative abundance change)\n relative to MEAN of reference gene",
+    title = "Normalized_ΔCq_mean") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+# 2nd deriviation approach
+ggplot(data = plate_norm_median_all) +
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain),
+    position = position_jitter(width = 0.2, height = 0)
+  ) +
+  labs(x= "Target mRNA",y = "ΔCq, (log2 relative abundance change)\n relative to MEDIAN of reference gene",
+    title = "Normalized_ΔCq_median") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
+
+
+## Calculate a summary value for each sample-target combination
+
+Having made normalized values, we use `group_by` and `summarize` from the `dplyr` package to calculate the median values of `delta_cq` and `rel_abund` for each sample. This makes a smaller table by collapsing 3 technical replicates into a single summary value for each `sample_id`-`target_id` combination.
+
+```{r median_counts,dependson="load_plates"}
+# mean
+plate_med_mean <- plate_norm_mean_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_mean <- plate_med_mean %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+# median
+plate_med_median <- plate_norm_median_all %>%
+  group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    delta_cq  = median(delta_cq, na.rm = TRUE),
+    rel_abund = median(rel_abund, na.rm = TRUE))
+plate_med_median <- plate_med_median %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+```
+
+## Plot delta Cq
+
+```{r plot_deltacq_vs_gene_total,dependson="median_counts",fig.height=6,fig.width=8}
+strain_colors <- c("blue", "red","pink", "green4","black")
+ggplot(data = plate_med_mean ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(x= "Target mRNA",
+    y = "ΔCq (log2 relative abundance change)\n relative to MEAN of reference gene"
+, title = "ΔCq_mean") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_med_median ) + 
+  geom_point(aes(x = target_id, y = delta_cq, shape = rep_number, colour = strain) ) + 
+  labs(x= "Target mRNA",
+    y = "ΔCq (log2 relative abundance change)\n relative to MEDIAN of reference gene"
+, title = "ΔCq_median") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_color_manual(values = strain_colors)
+```
+
+## Calculate deltadelta Cq
+
+```{r calculate_deltadeltacq,dependson="normalize_counts"}
+# also can choose median or mean, here is median
+plate_delta_mean_norm_mean <- plate_norm_mean_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2","WT_rep3",
+                                 norm_function = mean))
+plate_delta_mean_norm_mean <- plate_delta_mean_norm_mean %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_delta_mean_norm_mean <- plate_delta_mean_norm_mean %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_delta_median_norm_mean <- plate_norm_mean_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2","WT_rep3"))
+plate_delta_median_norm_mean <- plate_delta_median_norm_mean %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_delta_median_norm_mean <- plate_delta_median_norm_mean %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_delta_mean_norm_median <- plate_norm_median_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2","WT_rep3"),
+                                 norm_function = mean)
+plate_delta_mean_norm_median <- plate_delta_mean_norm_median %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_delta_mean_norm_median <- plate_delta_mean_norm_median %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+plate_delta_median_norm_median <- plate_norm_median_all %>%
+  calculate_deltadeltacq_bytargetid(ref_sample_ids = c("WT_rep1","WT_rep2","WT_rep3"))
+plate_delta_median_norm_median <- plate_delta_median_norm_median %>%
+    group_by(sample_id, prep_type, target_id) %>%
+  summarize(
+    deltadelta_cq  = median(deltadelta_cq, na.rm = TRUE),
+    fold_change    = median(fold_change,   na.rm = TRUE))
+plate_delta_median_norm_median <- plate_delta_median_norm_median %>%
+  mutate(strain = str_replace(sample_id, "_rep\\d$", ""),
+         rep_number = str_extract(sample_id, "rep\\d$"))
+
+```
+
+## Plot deltadelta Cq
+
+```{r plot_deltadeltacq_bytarget_mean,dependson="calculate_deltadeltacq",fig.height=4,fig.width=6}
+strain_colors <- c("blue", "red","pink", "green4","black")
+ggplot(data = plate_delta_mean_norm_mean ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(x= "Target mRNA",
+    y = "ΔΔCq (log2 fold change)\n relative to WT", title = "ΔΔCq_norm_mean_WT_mean"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_delta_median_norm_mean ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(x= "Target mRNA",
+    y = "ΔΔCq (log2 fold change)\n relative to WT", title = "ΔΔCq_norm_mean_wt_median"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+plate_delta_mean_norm_median
+ggplot(data = plate_delta_mean_norm_median ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(x= "Target mRNA",
+    y = "ΔΔCq (log2 fold change)\n relative to WT", title = "ΔΔCq_norm_median_wt_mean"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+
+ggplot(data = plate_delta_median_norm_median ) + 
+  geom_point(aes(x = target_id, y = deltadelta_cq, colour = strain, shape=rep_number)) + 
+  labs(x= "Target mRNA",
+    y = "ΔΔCq (log2 fold change)\n relative to WT", title = "ΔΔCq_norm_median_wt_median"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values = strain_colors)
+```
